@@ -1,6 +1,6 @@
-use const_to_static_table::{Lazy, initialize_all};
+use const_to_static_table::{Lazy, initialize};
 
-static INIT1: Lazy<String> = Lazy::new(|| async {
+static CUTE_DOG: Lazy<String> = Lazy::new(|| async {
     reqwest::get("https://dog.ceo/api/breeds/image/random")
         .await
         .unwrap()
@@ -11,6 +11,7 @@ static INIT1: Lazy<String> = Lazy::new(|| async {
         .unwrap()
         .to_string()
 });
+
 static INIT2: Lazy<i32> = Lazy::new(|| async { 2 });
 static INIT3: Lazy<f32> = Lazy::new(|| async { 3.0 });
 static INIT4: Lazy<String> = Lazy::new(|| async { 42.to_string() });
@@ -29,9 +30,9 @@ impl Database {
 
 #[tokio::main]
 async fn main() {
-    initialize_all().await;
+    initialize().await;
 
-    println!("1: {}", INIT1);
+    println!("1: {}", CUTE_DOG);
     println!("2: {}", INIT2);
     println!("3: {}", INIT3);
     println!("4: {}", INIT4);

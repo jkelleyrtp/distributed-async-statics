@@ -38,7 +38,8 @@ impl<M: 'static + Send + Sync> Lazy<M> {
         }
     }
 
-    pub fn get(&self) -> &M {
+    #[doc(hidden)]
+    pub fn get_inner(&self) -> &M {
         // Fast path if already initialized
         if let Some(value) = self.us.get() {
             return value;
@@ -72,7 +73,7 @@ impl<T: 'static + Send + Sync> std::ops::Deref for Lazy<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.get()
+        self.get_inner()
     }
 }
 
@@ -90,16 +91,17 @@ impl<T: 'static + Send + Sync + Debug> std::fmt::Debug for Lazy<T> {
             return debug_struct.finish();
         }
 
-        write!(f, "{:?}", self.get())
+        write!(f, "{:?}", self.get_inner())
     }
 }
 
 impl<T: 'static + Send + Sync + Display> std::fmt::Display for Lazy<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.get())
+        write!(f, "{}", self.get_inner())
     }
 }
 
+#[allow(clippy::type_complexity)]
 static INITIALIZED_MAP: LazyLock<Arc<Mutex<HashMap<usize, Box<dyn Any + Send + Sync>>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 
@@ -109,13 +111,18 @@ type PinnedAny = Pin<Box<dyn Future<Output = Box<dyn Any + Send + Sync>>>>;
 /// This function is safe to call multiple times, but only the first call will do anything.
 ///
 /// It must be called before any Lazy static is accessed, otherwise the program will panic.
-pub async fn initialize_all() {
+pub async fn initialize() {
     // only run once....
     static ONCE: AtomicBool = AtomicBool::new(false);
     if ONCE.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return;
     }
 
+    *INITIALIZED_MAP.lock().unwrap() = run_all_initializers().await;
+}
+
+/// Walk the section of initializers and call each one, collecting the results into a map.
+async fn run_all_initializers() -> HashMap<usize, Box<dyn Any + Send + Sync>> {
     /// Get the size of a function in the section by using a known function and measuring the section
     /// The initializer is passed in here so we can get proper types for the generics
     async fn get_size_of_fn<T: 'static + FnOnce() -> G, G: Future<Output = i32> + 'static>(
@@ -158,7 +165,7 @@ pub async fn initialize_all() {
         current += width;
     }
 
-    *INITIALIZED_MAP.lock().unwrap() = map;
+    map
 }
 
 unsafe extern "Rust" {
