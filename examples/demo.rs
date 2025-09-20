@@ -1,8 +1,18 @@
 use const_to_static_table::{Lazy, initialize_all};
 
-static INIT1: Lazy<String> = Lazy::new(fetch_doggo);
-static INIT2: Lazy<String> = Lazy::new(fetch_doggo);
-static INIT3: Lazy<String> = Lazy::new(|| async { 3.to_string() });
+static INIT1: Lazy<String> = Lazy::new(|| async {
+    reqwest::get("https://dog.ceo/api/breeds/image/random")
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap()["message"]
+        .as_str()
+        .unwrap()
+        .to_string()
+});
+static INIT2: Lazy<i32> = Lazy::new(|| async { 2 });
+static INIT3: Lazy<f32> = Lazy::new(|| async { 3.0 });
 static INIT4: Lazy<String> = Lazy::new(|| async { 42.to_string() });
 static DB: Lazy<Database> = Lazy::new(|| async { Database::new().await });
 
@@ -27,16 +37,4 @@ async fn main() {
     println!("4: {}", INIT4);
 
     DB.say_hi().await;
-}
-
-async fn fetch_doggo() -> String {
-    reqwest::get("https://dog.ceo/api/breeds/image/random")
-        .await
-        .unwrap()
-        .json::<serde_json::Value>()
-        .await
-        .unwrap()["message"]
-        .as_str()
-        .unwrap()
-        .to_string()
 }
