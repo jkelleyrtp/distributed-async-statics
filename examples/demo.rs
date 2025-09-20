@@ -1,11 +1,10 @@
-use const_to_static_table::{LazyInitializer, initialize_all};
+use const_to_static_table::{Lazy, initialize_all};
 
-static INIT1: LazyInitializer<i32> = LazyInitializer::new(&|| async move { 1 });
-static INIT2: LazyInitializer<i32> = LazyInitializer::new(&|| async move { 2 });
-static INIT3: LazyInitializer<i32> = LazyInitializer::new(&|| async move { 3 });
-static INIT4: LazyInitializer<i32> = LazyInitializer::new(&|| async move { 42 });
-static DB: LazyInitializer<Database> =
-    LazyInitializer::new(&|| async move { Database::new().await });
+static INIT1: Lazy<i32> = Lazy::new(|| async { 1 });
+static INIT2: Lazy<i32> = Lazy::new(|| async { 2 });
+static INIT3: Lazy<i32> = Lazy::new(|| async { 3 });
+static INIT4: Lazy<i32> = Lazy::new(|| async { 42 });
+static DB: Lazy<Database> = Lazy::new(|| async { Database::new().await });
 
 struct Database {}
 impl Database {

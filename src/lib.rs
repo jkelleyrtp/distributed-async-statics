@@ -1,6 +1,7 @@
 use std::{
-    any::Any,
+    any::{Any, TypeId, type_name, type_name_of_val},
     collections::HashMap,
+    hint::black_box,
     marker::PhantomData,
     panic::Location,
     pin::Pin,
@@ -117,26 +118,26 @@ extern "Rust" fn fixed_size_inner<
     }) as Pin<Box<dyn Future<Output = Box<dyn Any + Send + Sync>>>>
 }
 
-pub struct LazyInitializer<M> {
+pub struct Lazy<M> {
     static_entry: extern "Rust" fn() -> Pin<Box<dyn Future<Output = Box<dyn Any + Send + Sync>>>>,
-    ptr: *const (),
+    size: usize,
     caller: &'static Location<'static>,
     us: once_cell::sync::OnceCell<M>,
     _marker: PhantomData<M>,
 }
 
-unsafe impl<M> Send for LazyInitializer<M> {}
-unsafe impl<M> Sync for LazyInitializer<M> {}
+unsafe impl<M> Send for Lazy<M> {}
+unsafe impl<M> Sync for Lazy<M> {}
 
-impl<M: 'static + Send + Sync> LazyInitializer<M> {
-    pub const fn new<G: Fn() -> F + Copy + 'static, F: Future<Output = M> + 'static>(
-        f: &'static G,
-    ) -> Self {
+impl<M: 'static + Send + Sync> Lazy<M> {
+    pub const fn new<G: Fn() -> F + Copy + 'static, F: Future<Output = M> + 'static>(f: G) -> Self {
         let caller = Location::caller();
-        LazyInitializer {
+        let size = size_of_val(&std::hint::black_box(f));
+
+        Lazy {
             static_entry: write_static_entry_for::<G, F, M>,
-            ptr: f as *const G as *const (),
             caller,
+            size,
             _marker: PhantomData,
             us: once_cell::sync::OnceCell::new(),
         }
@@ -144,7 +145,7 @@ impl<M: 'static + Send + Sync> LazyInitializer<M> {
 
     pub fn get(&self) -> &M {
         if self.us.get().is_none() {
-            unsafe { std::ptr::read_volatile(&self.ptr) };
+            unsafe { std::ptr::read_volatile(&self.size) };
             unsafe { std::ptr::read_volatile(&self.static_entry) };
 
             let initializer = INITIALIZED
@@ -167,7 +168,7 @@ impl<M: 'static + Send + Sync> LazyInitializer<M> {
     }
 }
 
-impl<T: 'static + Send + Sync> std::ops::Deref for LazyInitializer<T> {
+impl<T: 'static + Send + Sync> std::ops::Deref for Lazy<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
